@@ -1,0 +1,23 @@
+The testdata directory contains a program for generating the
+regression test data.  The program contains a #define that specifies
+the number of test cases to generate.  It must be equal to (or greater
+than) the matching #define in regression.c
+
+Here is how to compile it.
+
+# for 8 bit chunks
+gcc -DEIGHT_BIT -I.. -o gentestdata gentestdata.c ../bigint.c -lm
+gcc -DEIGHT_BIT -I.. -o regression regression.c ../bigint.c -lm
+
+# for 16 bit chunks
+gcc -DSIXTEEN_BIT -I.. -o gentestdata gentestdata.c ../bigint.c -lm
+gcc -DSIXTEEN_BIT -I.. -o regression regression.c ../bigint.c -lm
+
+# for 32 bit chunks
+gcc -I.. -o gentestdata gentestdata.c ../bigint.c -lm
+gcc -I.. -o regression regression.c ../bigint.c -lm
+
+# for 64 bit chunks
+gcc -DSIXTYFOUR_BIT -I.. -o gentestdata gentestdata.c ../bigint.c -lm
+gcc -DSIXNYFOUR_BIT -I.. -o regression regression.c ../bigint.c -lm
+
