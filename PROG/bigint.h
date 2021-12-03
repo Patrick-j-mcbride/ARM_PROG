@@ -38,6 +38,7 @@ bigint bigint_shift_right(bigint l, int shamt);
 
 /* There are seven comparison operations.  They return 1 for true,
     or 0 for false. */
+int bigint_zero(bigint b);
 int bigint_is_zero(bigint b);
 int bigint_le(bigint l, bigint r);
 int bigint_lt(bigint l, bigint r);

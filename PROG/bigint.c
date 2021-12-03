@@ -26,9 +26,8 @@ struct bigint_struct
 /* Private function prototypes */
 bigint bigint_adc(bigint l, bigint r, chunk carry);
 static bigint bigint_shift_left_chunk(bigint l, int chunks);
-void bigint_shift_left_in_place(bigint l, int shamt);
 static bigint bigint_shift_right_chunk(bigint l, int chunks);
-bigint bigint_trim(bigint b);
+static bigint bigint_trim(bigint b);
 bigint bigint_fast_trim(bigint b);
 static bigint bigint_mul_uint(bigint l, chunk r);
 static bigint bigint_extend(bigint b, int nchunks);
@@ -62,7 +61,7 @@ bigint bigint_from_str(char *s) {
     tmp = bigint_from_int(s[i]-'0');
     currprod = bigint_mul(tmp,power);
     bigint_free(tmp);
-    tmp = bigint_adc(currprod,d,0);
+    tmp = bigint_add(currprod,d);
     bigint_free(d);
     d = tmp;
     bigint_free(currprod);
@@ -143,13 +142,13 @@ char *bigint_to_str(bigint b) {
     bigint_free(tmp);
     tmp = tmp2;
   }
-  if (bigint_is_zero(tmp)) {
+  if (bigint_zero(tmp)) {
     s[--i] = '0';
   } else {
     do {
       remainder = bigint_smallmod(tmp, 10);
       s[--i] = remainder + '0';
-    } while(!bigint_is_zero(tmp));
+    } while(!bigint_zero(tmp));
     if (negative)
       s[--i] = '-';
   }
@@ -171,45 +170,6 @@ void bigint_free(bigint b) {
 /******************************************************************/
 /* Mathematical operations                                        */
 /******************************************************************/
-
-/* this is the internal add function.  It includes a    */
-/* carry. Several other functions use it.               */
-#ifndef USE_ASM
- bigint bigint_adc(bigint l, bigint r, chunk carry) {
-  bigint sum, tmpl, tmpr;
-  int i, nchunks;
-  bigchunk tmpsum;
-  /* allocate one extra chunk to make sure overflow
-     cannot occur */
-  nchunks = MAX(l->size, r->size) + 1;
-  /* make sure both operands are the same size */
-  tmpl = bigint_extend(l, nchunks);
-  tmpr = bigint_extend(r, nchunks);
-  /* allocate space for the result */
-  sum = bigint_alloc(nchunks);
-  /* perform the addition */
-  for (i = 0; i < nchunks; i++) {
-    /* add the current block of bits */
-    tmpsum = (bigchunk)tmpl->blks[i] + (bigchunk)tmpr->blks[i] + (bigchunk)carry;
-    sum->blks[i] = tmpsum & CHUNKMASK;
-    /* calculate the carry bit for the next block */
-    carry = (tmpsum >> BITSPERCHUNK) & CHUNKMASK;
-  }
-  bigint_free(tmpl);
-  bigint_free(tmpr);
-  tmpl = bigint_trim(sum);
-  bigint_free(sum);
-  return tmpl;
-}
-#endif
-
-/* The add function calls adc to perform an add with    */
-/* initial carry of zero */    
-#ifndef USE_ASM                           
-bigint bigint_add(bigint l, bigint r) {
-  return bigint_adc(l, r, 0);
-}
-#endif
 
 /* The complement function returns the 1's complement */
 bigint bigint_complement(bigint b) {
@@ -251,7 +211,7 @@ static bigint bigint_mul_uint(bigint l, chunk r) {
     tmp1->blks[2] = 0;
     tmp2 = bigint_shift_left_chunk(tmp1, i);
     bigint_free(tmp1);
-    tmp1 = bigint_adc(sum, tmp2, 0);
+    tmp1 = bigint_add(sum, tmp2);
     bigint_free(sum);
     bigint_free(tmp2);
     sum = tmp1;
@@ -283,7 +243,7 @@ bigint bigint_mul(bigint l, bigint r) {
     tmp2 = bigint_shift_left_chunk(tmp1,i);
     bigint_free(tmp1);
     tmp1 = sum;
-    sum = bigint_adc(sum,tmp2,0);
+    sum = bigint_add(sum,tmp2);
     bigint_free(tmp1);
     bigint_free(tmp2);
   }
@@ -300,14 +260,16 @@ bigint bigint_mul(bigint l, bigint r) {
 bigint bigint_div(bigint l, bigint r) {
   bigint lt = bigint_trim(l);
   bigint rt = bigint_trim(r);
-
   bigint tmp,q = bigint_from_int(0);
+
   int shift, chunkshift, negative = 0;
   if (lt->size < rt->size) {
     bigint_free(lt);
     bigint_free(rt);
     return q; 
   }
+
+  
   /* make sure the right operand is not negative */
   if (r->blks[r->size-1] & ((bigchunk)1<<(BITSPERCHUNK-1))) {
     negative = 1;  /* track sign of result */
@@ -331,7 +293,7 @@ bigint bigint_div(bigint l, bigint r) {
   }
   /* do remaining shift bit-by-bit */
   shift = 0;
-  while ((shift < (BITSPERCHUNK-1)) && bigint_lt(rt, lt)) {
+  while ((shift < (BITSPERCHUNK-1)) && (bigint_cmp(rt, lt) < 0)) {
     shift++;
     tmp = rt;
     rt = bigint_shift_left(rt, 1);
@@ -343,7 +305,7 @@ bigint bigint_div(bigint l, bigint r) {
     tmp = q;
     q = bigint_shift_left(q, 1);
     bigint_free(tmp);
-    if (bigint_le(rt, lt)) {
+    if (bigint_cmp(rt, lt) < 1) {
       /* perform subtraction */
       tmp = lt;
       lt = bigint_sub(lt,rt);
@@ -356,6 +318,7 @@ bigint bigint_div(bigint l, bigint r) {
     bigint_free(tmp);
     shift--;
   }
+  
   /* correct the sign of the result */
   if (negative) {
     tmp = bigint_negate(q);
@@ -367,23 +330,6 @@ bigint bigint_div(bigint l, bigint r) {
   return q;
 }
 
-/* The C version of bigint_negate is very short, because it uses
-   existing functions.  However, it is not very efficient. We also
-   have an assembly version of the negate function. The #ifndef 
-   allows us to use the assembly version. When USE_ASM is defined,
-   the C version will not be compiled. */
-
-#ifndef USE_ASM
-bigint bigint_negate(bigint b) {
-  bigint r = bigint_complement(b);   /* get 1's complement */
-  bigint tmp1 = bigint_from_int(0);  /* create zero */
-  bigint tmp2 = bigint_adc(r, tmp1, 1); /* add with an initial carry */
-  bigint_free(tmp1);
-  bigint_free(r);
-  return tmp2;
-}
-#endif
-
 /* The add function calls adc to perform an add with    */
 /* initial carry of zero                                */
 bigint bigint_abs(bigint b) {
@@ -393,8 +339,8 @@ bigint bigint_abs(bigint b) {
     return bigint_copy(b);
 }
 
-
-/* The sqrt function returns floor(sqrt(b)) using the digit-by-digit */
+/* The sqrt function returns floor(sqrt(b)) using the digit-by-digit
+   algorithm.  There are better square root algorithms...  */
 bigint bigint_sqrt(bigint b) {
   bigint r = bigint_from_int(0), zero = bigint_from_int(0);
   bigint num = bigint_copy(b), tmp, resplusbit, bit;
@@ -403,8 +349,7 @@ bigint bigint_sqrt(bigint b) {
       "Cannot compute square root of negative number.\n");
     exit(1);
   }
-
-  
+  /* initialize bit to the largest power of 4 that is <= b */
   bit = bigint_alloc(b->size);
   bit->blks[bit->size-1] = ((bigchunk)1<<(BITSPERCHUNK-2));
   for (int i = 0; i < bit->size-1; i++)
@@ -413,10 +358,10 @@ bigint bigint_sqrt(bigint b) {
     bit->blks[bit->size-1] >>= 2;
   if (bit->blks[bit->size-1] == 0)
     bit->blks[bit->size-2] = ((bigchunk)1<<(BITSPERCHUNK-2));
-  
-  while (bigint_gt(bit,zero)) {
+  /* this could be more efficient. TODO */
+  while (bigint_cmp(bit,zero) == 1) {
     resplusbit = bigint_add(r, bit);
-    if (bigint_ge(num,resplusbit)) {
+    if (bigint_cmp(num,resplusbit) > -1) {
       tmp = num;
       num = bigint_sub(num,resplusbit);
       bigint_free(tmp);
@@ -440,6 +385,7 @@ bigint bigint_sqrt(bigint b) {
   return r;
 }
 
+/******************************************************************/
 
 /* shift left by entire chunks */
 static bigint bigint_shift_left_chunk(bigint l, int chunks) {
@@ -468,19 +414,18 @@ static bigint bigint_shift_right_chunk(bigint l, int chunks) {
 /* Shift left the given about.  This will shift by chunks as much as
    it can, then finish off with a sub-chunk shift. */
 bigint bigint_shift_left(bigint l, int shamt) {
-
   int sz = (l->size)+1;
-  l = bigint_extend(l, (shamt>>6)+sz);
   int extra = (shamt & 0x000000000000003F);
+  l = bigint_extend(l, (shamt>>6)+sz);
   shamt = (shamt>>6);
-  if (shamt) {
+
+  if (shamt >= 0) {
   for (int i = -shamt; i < sz; i++) {
     if (i < 0)
       l->blks[i+shamt] = 0;
     else
       l->blks[i+shamt] = l->blks[i];
-  }
-
+    }
   }
   if (extra) {
     for (int i = l->size - 1; i > 0; i--) {
@@ -493,60 +438,14 @@ bigint bigint_shift_left(bigint l, int shamt) {
   return l;
 }
 
-void bigint_shift_left_in_place(bigint l, int shamt) 
-{
-  int sz = (l->size)+1;
-  l = bigint_extend(l, (shamt>>6)+sz);
-  int extra = (shamt & 0x000000000000003F);
-  shamt = (shamt>>6);
-  if (shamt) {
-  for (int i = -shamt; i < sz; i++) {
-    if (i < 0)
-      l->blks[i+shamt] = 0;
-    else
-      l->blks[i+shamt] = l->blks[i];
-  }
-
-  }
-  if (extra) {
-    for (int i = l->size - 1; i > 0; i--) {
-      l->blks[i] =
-        (l->blks[i]<<extra) | (l->blks[i-1]>>(BITSPERCHUNK-extra));
-    }
-    l->blks[0] = (l->blks[0] << extra);
-  }
-  bigint_fast_trim(l);
-}
 /* Arithmetic shift right the given about.  This will shift by
    chunks as much as it can, then finish off with a sub-chunk
    shift. */
 bigint bigint_shift_right(bigint l, int shamt) {
   schunk tmpc;
-  int extra = (shamt % 64);
-  shamt = (shamt/64);
- 
-  if (shamt > 0) {
-    l = bigint_shift_right_chunk(l, shamt);
-  }
-  l = bigint_trim(l);
-  //bigint tmp = bigint_alloc(l->size - chunks);
-  //for (int i = 0; i < (l->size - shamt); i++) {
-  //  if (i<shamt)
-  //    l->blks[i] = 0;   // should do sign extend // TODO comment
-  //  else
-  //    l->blks[i]=l->blks[i-shamt];
-  //}
-  
-  //l->size = (l->size - shamt);
-
-  for (int i = 0; i < l->size; i++) {
-    if (i < shamt){
-        l->blks[i] = 0;   // should do sign extend // TODO comment
-    }
-    else{
-        l->blks[i]=l->blks[i-shamt];
-    }
-  }
+  int extra = (shamt & 0x000000000000003F);
+  shamt = (shamt>>6);
+  l = bigint_shift_right_chunk(l, shamt); 
   if (extra) {
     for (int i = 0; i < l->size-1; i++) {
       l->blks[i] =
@@ -597,22 +496,6 @@ inline int bigint_ne(bigint l, bigint r) {
   return abs(bigint_cmp(l, r));
 }
 
-/* bigint_cmp is the core of all of the comparisons */
-#ifndef USE_ASM
-int bigint_cmp(bigint l, bigint r) {
-  bigint d = bigint_sub(l,r);
-  int cmp;
-  if ((d->size == 0) || (d->size == 1 && d->blks[0] == 0)) {
-    cmp = 0;    // d == 0
-  } else if (d->blks[d->size-1] & ((bigchunk)1 << (BITSPERCHUNK-1))) {
-    cmp = -1;   // d < 0 (MSB == 1)
-  } else {
-    cmp = 1;    // d > 0
-  }
-  bigint_free(d);
-  return cmp;
-}
-#endif
 
 /******************************************************************/
 /* Functions for binary input/output                              */

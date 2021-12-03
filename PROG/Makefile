@@ -30,7 +30,7 @@ COBJS = bigint.o
 #ASMOBJS =
 #DEFINES = -DSIXTYFOUR_BIT
 
-ASMOBJS = bigint_negate.o bigint_cmp.o bigint_adc.o bigint_add.o
+ASMOBJS = bigint_negate.o bigint_cmp.o bigint_adc.o bigint_add.o bigint_zero.o
 DEFINES = -DUSE_ASM -DSIXTYFOUR_BIT
 
 #ASMOBJS = bigint_negate.o bigint_add.o

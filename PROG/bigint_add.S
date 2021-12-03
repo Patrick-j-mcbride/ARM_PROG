@@ -3,8 +3,7 @@
         .type   bigint_add, %function
         .global bigint_add
 bigint_add:
-        stp     x29, x30, [sp, #-16]!   // Save FP & Link Register x30
-        stp     x24, x25, [sp, #-16]! 
+        stp     x29, x30, [sp, #-16]!   // Save FP & Link Register x30 
         stp     x22, x23, [sp, #-16]!   
         stp     x20, x21, [sp, #-16]!
         mov     x22, x0                 // move L
@@ -14,7 +13,6 @@ bigint_add:
         ldr     w20, [x0, #8]           // size L
         mov     x21, xzr
         ldr     w21, [x1, #8]           // size R
-        mov     x25, xzr                 // move carry
 
         cmp     w20, w21                // compair size of L and R
 
@@ -27,6 +25,7 @@ eqRL:    // L and R are equal size
         ldr     x22, [x22]
         mov     x5, xzr
         ldr     x23, [x23]
+        mov     x6, xzr                 // move carry
         ldr     x4, [x0]
 
 eqLRAddLoop:   // L and R are equal size loop
@@ -35,12 +34,12 @@ eqLRAddLoop:   // L and R are equal size loop
         sub     w21, w21, #1    // itr--
 
         ldr     x12, [x22], #8               // L chunk 
-        adds    x10, x25, x12                // L+C      
+        adds    x10, x6, x12                // L+C      
         ldr     x13, [x23], #8               // R chunk 
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         b       eqLRAddLoop
 eqTopChunkAdd:
@@ -51,11 +50,11 @@ eqTopChunkAdd:
         cmp     x2, x3 
         beq     eqSameSign
 eqMixSigns:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         asr     x10, x10, #63
         str     x10, [x4]
@@ -64,23 +63,23 @@ eqSameSign:
         cmp     x2, #1
         beq     eqBothNegative 
 eqBothPositive:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
-        str     x25, [x4]
+        str     x6, [x4]
         b       trimAndReturn
 eqBothNegative:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
-        mov     x25, 0xFFFFFFFFFFFFFFFF
-        str     x25, [x4]
+        mov     x6, 0xFFFFFFFFFFFFFFFF
+        str     x6, [x4]
         b       trimAndReturn
 
 
@@ -91,6 +90,7 @@ bigL:   // L is biger
         ldr     x22, [x22]
         sub     x20, x20, x21
         ldr     x23, [x23]
+        mov     x6, xzr                 // move carry
         ldr     x4, [x0]
         mov     x5, xzr
 
@@ -100,22 +100,22 @@ bigLTopAddLoop:   // L > R loop
         sub     w21, w21, #1    // itr--
 
         ldr     x12, [x22], #8               // L chunk 
-        adds    x10, x25, x12                // L+C      
+        adds    x10, x6, x12                // L+C      
         ldr     x13, [x23], #8               // R chunk 
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         b       bigLTopAddLoop
 bigLFirstStop:
         ldr     x12, [x22], #8               // L chunk 
-        adds    x10, x25, x12                // L+C      
+        adds    x10, x6, x12                // L+C      
         ldr     x13, [x23]               // R chunk 
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         asr     x13, x13, #63
 
@@ -125,11 +125,11 @@ bigLBottomAddLoop:
         sub     w20, w20, #1    // itr--
 
         ldr     x12, [x22], #8               // L chunk 
-        adds    x10, x25, x12                // L+C      
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C      
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         b       bigLBottomAddLoop
 bigLFinalStop:
@@ -139,11 +139,11 @@ bigLFinalStop:
         cmp     x2, x3 
         beq     bigLSameSigns
 bigLMixedSigns:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         asr     x10, x10, #63
         str     x10, [x4]
@@ -152,23 +152,23 @@ bigLSameSigns:
         cmp     x2, #1
         beq     bigLBothNegative 
 bigLBothPositive:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
-        str     x25, [x4]
+        str     x6, [x4]
         b       trimAndReturn
 bigLBothNegative:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
-        mov     x25, 0xFFFFFFFFFFFFFFFF
-        str     x25, [x4]
+        mov     x6, 0xFFFFFFFFFFFFFFFF
+        str     x6, [x4]
         b       trimAndReturn
 
 bigR:   // R is biger
@@ -177,6 +177,7 @@ bigR:   // R is biger
         ldr     x22, [x22]
         sub     x21, x21, x20
         ldr     x23, [x23]
+        mov     x6, xzr                 // move carry
         ldr     x4, [x0]
         mov     x5, xzr
 
@@ -186,22 +187,22 @@ bigRTopAddLoop:   // L > R loop
         sub     w20, w20, #1    // itr--
 
         ldr     x12, [x22], #8               // L chunk 
-        adds    x10, x25, x12                // L+C      
+        adds    x10, x6, x12                // L+C      
         ldr     x13, [x23], #8               // R chunk 
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         b       bigRTopAddLoop
 bigRFirstStop:
         ldr     x13, [x23], #8               // L chunk 
-        adds    x10, x25, x13                // R+C      
+        adds    x10, x6, x13                // R+C      
         ldr     x12, [x22]               // L chunk 
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x12
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         asr     x12, x12, #63
 
@@ -211,11 +212,11 @@ bigRBottomAddLoop:
         sub     w21, w21, #1    // itr--
 
         ldr     x13, [x23], #8               // L chunk 
-        adds    x10, x25, x13                // L+C      
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x13                // L+C      
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x12
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         b       bigRBottomAddLoop
 bigRFinalStop:
@@ -225,11 +226,11 @@ bigRFinalStop:
         cmp     x2, x3 
         beq     bigRSameSigns
 bigRMixedSigns:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
         asr     x10, x10, #63
         str     x10, [x4]
@@ -238,30 +239,29 @@ bigRSameSigns:
         cmp     x2, #1
         beq     bigRBothNegative 
 bigRBothPositive:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
-        str     x25, [x4]
+        str     x6, [x4]
         b       trimAndReturn
 bigRBothNegative:
-        adds    x10, x25, x12                // L+C       
-        mov     x25, xzr
-        adcs    x25, x5, xzr               
+        adds    x10, x6, x12                // L+C       
+        mov     x6, xzr
+        adcs    x6, x5, xzr               
         adds    x10, x10, x13
-        adc     x25, x5, xzr
+        adc     x6, x5, xzr
         str     x10, [x4], #8
-        mov     x25, 0xFFFFFFFFFFFFFFFF
-        str     x25, [x4]
+        mov     x6, 0xFFFFFFFFFFFFFFFF
+        str     x6, [x4]
         b       trimAndReturn
 
 trimAndReturn:
         bl      bigint_fast_trim
         ldp     x20, x21, [sp], #16   
         ldp     x22, x23, [sp], #16  
-        ldp     x24, x25, [sp], #16    
         ldp     x29, x30, [sp], #16     // Restore FP & LR
         ret
 .size   bigint_add,(. - bigint_add)

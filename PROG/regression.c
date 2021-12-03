@@ -69,7 +69,7 @@ int main(void) {
 
   // Total time
   printf("Total time :\t %lf\n",(total)/(double)CLOCKS_PER_SEC);
-  printf("Speed up :\t %lf\n",(23.84/((total)/(double)CLOCKS_PER_SEC)));
+
   // Free
   for(int i = 0; i < N; i++) {
     bigint_free(a[i]);

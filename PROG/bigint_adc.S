@@ -83,8 +83,6 @@ eqBothNegative:
         str     x25, [x24]
         b       trimAndReturn
 
-
-
 bigL:   // L is biger
         add     x0, x20, #1             // put L.size+1 into x0
         bl      bigint_alloc            // allocate new bigint             
